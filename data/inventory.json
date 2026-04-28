@@ -1,0 +1,13 @@
+{
+    "categories": [
+        { "id": 1, "name": "Sistemas PC" },
+        { "id": 2, "name": "Componentes" },
+        { "id": 3, "name": "Periféricos Pro" }
+    ],
+    "products": [
+        { "id": 101, "name": "PC Gamer Master Case Custom", "price": 2850000, "categoryId": 1, "image": "assets/case.png", "details": "Procesador i9-14900K, 64GB RAM DDR5, RTX 4090, Watercooling Custom Loop." },
+        { "id": 102, "name": "Monitor Gaming 27' 4K Ultra-Pro", "price": 550000, "categoryId": 2, "image": "assets/monitor.png", "details": "Panel IPS 144Hz, 1ms, G-Sync compatible, HDR600." },
+        { "id": 103, "name": "Nvidia RTX 4080 Super OC", "price": 1750000, "categoryId": 2, "image": "assets/gpu.png", "details": "16GB VRAM, Triple Fan, Iluminación RGB, Arquitectura Ada Lovelace." },
+        { "id": 104, "name": "Teclado Mecánico 75% Custom Pink", "price": 135000, "categoryId": 3, "image": "assets/keyboard.png", "details": "Switches Gateron Brown, Keycaps PBT Dye-sub, Conexión USB-C." }
+    ]
+}

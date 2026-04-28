@@ -2,16 +2,14 @@ const WHATSAPP_NUM = "543794236239";
 const ADMIN_CREDS = { user: "fixzone121", pass: "fixzon3" };
 
 let state = {
-    categories: JSON.parse(localStorage.getItem('fx_categories_v2')) || [
+    categories: [
         { id: 1, name: "Sistemas PC" },
         { id: 2, name: "Componentes" },
         { id: 3, name: "Periféricos Pro" }
     ],
-    products: JSON.parse(localStorage.getItem('fx_products_v2')) || [
-        { id: 101, name: "PC Gamer Master Case Custom", price: 2850000, categoryId: 1, image: 'assets/case.png' },
-        { id: 102, name: "Monitor Gaming 27' 4K Ultra-Pro", price: 550000, categoryId: 2, image: 'assets/monitor.png' },
-        { id: 103, name: "Nvidia RTX 4080 Super OC", price: 1750000, categoryId: 2, image: 'assets/gpu.png' },
-        { id: 104, name: "Teclado Mecánico 75% Custom Pink", price: 135000, categoryId: 3, image: 'assets/keyboard.png' }
+    products: [
+        { id: 101, name: "PC Gamer Master Case Custom", price: 2850000, categoryId: 1, image: 'assets/case.png', details: "Procesador i9 de última generación, 64GB RAM DDR5, RTX 4090." },
+        { id: 102, name: "Monitor Gaming 27' 4K Ultra-Pro", price: 550000, categoryId: 2, image: 'assets/monitor.png', details: "144Hz, Panel IPS, Tiempo de respuesta 1ms." }
     ],
     cart: [],
     activeCategory: 'ALL',
@@ -20,18 +18,45 @@ let state = {
 };
 
 function $(id) { return document.getElementById(id); }
+
+// --- STORAGE & SYNC ---
 function saveState() {
     localStorage.setItem('fx_categories_v2', JSON.stringify(state.categories));
     localStorage.setItem('fx_products_v2', JSON.stringify(state.products));
 }
 
-// TIENDA
+async function loadData() {
+    try {
+        // Try to load from LocalStorage first (for offline/instant edits)
+        const localCats = localStorage.getItem('fx_categories_v2');
+        const localProds = localStorage.getItem('fx_products_v2');
+        
+        if (localCats && localProds) {
+            state.categories = JSON.parse(localCats);
+            state.products = JSON.parse(localProds);
+        } else {
+            // Fallback to the JSON file in the repo
+            const res = await fetch('data/inventory.json');
+            if (res.ok) {
+                const data = await res.json();
+                state.categories = data.categories;
+                state.products = data.products;
+                saveState();
+            }
+        }
+    } catch (e) {
+        console.log("Using default fallback data");
+    }
+    renderStore();
+}
+
+// --- TIENDA ---
 function renderStore() {
     const grid = $('product-grid');
     const tabs = $('category-tabs');
     const empty = $('empty-store');
     
-    tabs.innerHTML = `<button onclick="filterBy('ALL')" class="${state.activeCategory === 'ALL' ? 'text-pink-500' : 'text-gray-600'} text-[10px] font-bold tracking-widest uppercase px-6 py-3 border-b-2 ${state.activeCategory === 'ALL' ? 'border-pink-500' : 'border-transparent'} transition-all hover:text-pink-500">Todo el Ecosistema</button>`;
+    tabs.innerHTML = `<button onclick="filterBy('ALL')" class="${state.activeCategory === 'ALL' ? 'text-pink-500' : 'text-gray-600'} text-[10px] font-bold tracking-widest uppercase px-6 py-3 border-b-2 ${state.activeCategory === 'ALL' ? 'border-pink-500' : 'border-transparent'} transition-all hover:text-pink-500">Todo</button>`;
     state.categories.forEach(cat => {
         tabs.innerHTML += `<button onclick="filterBy(${cat.id})" class="${state.activeCategory == cat.id ? 'text-pink-500' : 'text-gray-600'} text-[10px] font-bold tracking-widest uppercase px-6 py-3 border-b-2 ${state.activeCategory == cat.id ? 'border-pink-500' : 'border-transparent'} transition-all hover:text-pink-500">${cat.name}</button>`;
     });
@@ -47,22 +72,27 @@ function renderStore() {
 
     filtered.forEach(p => {
         grid.innerHTML += `
-            <div class="glass-card p-10 rounded-[2.5rem] group hover:scale-[1.03]">
-                <div class="h-44 bg-white/5 rounded-[2rem] mb-8 flex items-center justify-center relative overflow-hidden">
-                    ${p.image 
-                        ? `<img src="${p.image}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="${p.name}">`
-                        : `<i class="fa-solid fa-microchip text-5xl text-white/5 group-hover:text-pink-500/20 transition-all"></i>`
-                    }
-                </div>
-                <div class="space-y-4">
-                    <span class="text-[9px] font-bold tracking-[0.3em] uppercase text-pink-500/60">${state.categories.find(c => c.id == p.categoryId)?.name || 'General'}</span>
-                    <h3 class="text-xl font-bold truncate">${p.name}</h3>
-                    <div class="flex justify-between items-center pt-6">
-                        <span class="text-[22px] font-bold tracking-tight text-white">$${p.price.toLocaleString()}</span>
-                        <button onclick="addToCart(${p.id})" class="w-12 h-12 glass-card rounded-2xl flex items-center justify-center hover:bg-pink-500 hover:text-black transition-all">
-                            <i class="fa-solid fa-plus text-xs"></i>
-                        </button>
+            <div class="glass-card p-10 rounded-[2.5rem] group hover:scale-[1.03] flex flex-col justify-between h-full">
+                <div onclick="showProductDetails(${p.id})" class="cursor-pointer">
+                    <div class="h-44 bg-white/5 rounded-[2rem] mb-8 flex items-center justify-center relative overflow-hidden">
+                        ${p.image 
+                            ? `<img src="${p.image}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="${p.name}">`
+                            : `<i class="fa-solid fa-microchip text-5xl text-white/5 group-hover:text-pink-500/20 transition-all"></i>`
+                        }
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <span class="text-[10px] font-bold tracking-widest uppercase text-white border border-white/20 px-4 py-2 rounded-full backdrop-blur-md">Ver Detalles</span>
+                        </div>
                     </div>
+                    <div class="space-y-4">
+                        <span class="text-[9px] font-bold tracking-[0.3em] uppercase text-pink-500/60">${state.categories.find(c => c.id == p.categoryId)?.name || 'General'}</span>
+                        <h3 class="text-xl font-bold truncate">${p.name}</h3>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center pt-6">
+                    <span class="text-[22px] font-bold tracking-tight text-white">$${p.price.toLocaleString()}</span>
+                    <button onclick="addToCart(${p.id})" class="w-12 h-12 glass-card rounded-2xl flex items-center justify-center hover:bg-pink-500 hover:text-black transition-all">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
                 </div>
             </div>
         `;
@@ -70,6 +100,23 @@ function renderStore() {
 }
 
 function filterBy(cid) { state.activeCategory = cid; renderStore(); }
+
+function showProductDetails(pid) {
+    const p = state.products.find(x => x.id == pid);
+    if (!p) return;
+    const cat = state.categories.find(c => c.id == p.categoryId);
+    
+    $('detail-img').src = p.image || '';
+    $('detail-cat').innerText = cat ? cat.name : 'General';
+    $('detail-name').innerText = p.name;
+    $('detail-desc').innerText = p.details || 'Sin especificaciones adicionales.';
+    $('detail-price').innerText = `$${p.price.toLocaleString()}`;
+    $('detail-add-btn').onclick = () => { addToCart(p.id); closeProductDetails(); };
+    
+    $('product-details-modal').classList.remove('hidden');
+}
+
+function closeProductDetails() { $('product-details-modal').classList.add('hidden'); }
 
 function addToCart(pid) {
     const product = state.products.find(p => p.id == pid);
@@ -137,18 +184,7 @@ function checkoutCart() {
     window.open(url, '_blank');
 }
 
-// CITA
-function openCitaModal(defaultDesc = "") { $('cita-modal').classList.remove('hidden'); $('cita-desc').value = defaultDesc; }
-function closeCitaModal() { $('cita-modal').classList.add('hidden'); }
-function handleCitaSubmit(e) {
-    e.preventDefault();
-    const dev = $('cita-device').value, desc = $('cita-desc').value;
-    const msg = `👔 *CONSULTA PROFESIONAL — FIXZONE*\n\n*Activo:* ${dev}\n*Descripción:* ${desc}`;
-    window.open(`https://wa.me/${WHATSAPP_NUM}?text=${encodeURIComponent(msg)}`, '_blank');
-    closeCitaModal();
-}
-
-// ADMIN
+// --- ADMIN ---
 function handleLogoClick(force = null) {
     if (force === 5) { $('admin-login-modal').classList.remove('hidden'); return; }
     state.logoClicks++;
@@ -156,7 +192,18 @@ function handleLogoClick(force = null) {
     clearTimeout(window.logoTimeout);
     window.logoTimeout = setTimeout(() => { state.logoClicks = 0; }, 2000);
 }
-function handleAdminLogin(e) { e.preventDefault(); if ($('admin-user').value === ADMIN_CREDS.user && $('admin-pass').value === ADMIN_CREDS.pass) { $('admin-login-modal').classList.add('hidden'); $('admin-dashboard').classList.remove('hidden'); renderAdmin(); } else { alert("Error de Autenticación"); } }
+
+function handleAdminLogin(e) { 
+    e.preventDefault(); 
+    if ($('admin-user').value === ADMIN_CREDS.user && $('admin-pass').value === ADMIN_CREDS.pass) { 
+        $('admin-login-modal').classList.add('hidden'); 
+        $('admin-dashboard').classList.remove('hidden'); 
+        renderAdmin(); 
+    } else { 
+        alert("Error de Autenticación"); 
+    } 
+}
+
 function logoutAdmin() { $('admin-dashboard').classList.add('hidden'); }
 function closeAdminModals() { $('admin-login-modal').classList.add('hidden'); }
 
@@ -207,9 +254,9 @@ function openCategoryForm(id = null) {
     $('category-form-modal').classList.remove('hidden');
     if (id) {
         const c = state.categories.find(x => x.id == id);
-        $('edit-cat-id').value = id; $('cat-name').value = c.name; $('cat-form-title').innerText = "Editar Nodo";
+        $('edit-cat-id').value = id; $('cat-name').value = c.name; $('cat-form-title').innerText = "Editar Categoría";
     } else {
-        $('edit-cat-id').value = ''; $('cat-name').value = ''; $('cat-form-title').innerText = "Nuevo Nodo";
+        $('edit-cat-id').value = ''; $('cat-name').value = ''; $('cat-form-title').innerText = "Nueva Categoría";
     }
 }
 function closeCategoryForm() { $('category-form-modal').classList.add('hidden'); }
@@ -227,32 +274,112 @@ function openProductForm(id = null) {
     if (id) {
         const p = state.products.find(x => x.id == id);
         $('edit-prod-id').value = id; $('prod-name').value = p.name; $('prod-price').value = p.price; $('prod-cat').value = p.categoryId;
+        $('prod-details').value = p.details || '';
         state.currentProdImage = p.image;
         if (p.image) $('admin-prod-preview').innerHTML = `<img src="${p.image}" class="w-full h-full object-cover">`;
     } else {
-        $('edit-prod-id').value = ''; $('prod-name').value = ''; $('prod-price').value = '';
+        $('edit-prod-id').value = ''; $('prod-name').value = ''; $('prod-price').value = ''; $('prod-details').value = '';
         state.currentProdImage = null;
         $('admin-prod-preview').innerHTML = `<i class="fa-solid fa-cloud-arrow-up text-2xl text-white/10"></i>`;
     }
 }
 function closeProductForm() { $('product-form-modal').classList.add('hidden'); }
 function saveProduct() {
-    const n = $('prod-name').value, pr = parseFloat($('prod-price').value), ci = parseInt($('prod-cat').value), id = $('edit-prod-id').value;
-    if (!n || !pr) return;
+    const n = $('prod-name').value, pr = parseFloat($('prod-price').value), ci = parseInt($('prod-cat').value), id = $('edit-prod-id').value, det = $('prod-details').value;
+    if (!n || isNaN(pr)) return;
     if (id) { 
         const p = state.products.find(x => x.id == id); 
-        p.name = n; p.price = pr; p.categoryId = ci; p.image = state.currentProdImage;
+        p.name = n; p.price = pr; p.categoryId = ci; p.image = state.currentProdImage; p.details = det;
     } else { 
-        state.products.push({ id: Date.now(), name: n, price: pr, categoryId: ci, image: state.currentProdImage }); 
+        state.products.push({ id: Date.now(), name: n, price: pr, categoryId: ci, image: state.currentProdImage, details: det }); 
     }
     saveState(); renderAdmin(); closeProductForm();
 }
 function deleteProduct(id) { if (confirm("¿Eliminar registro de inventario?")) { state.products = state.products.filter(p => p.id != id); saveState(); renderAdmin(); } }
 
-function toggleMobileMenu() { $('mobile-menu').classList.toggle('hidden'); }
+// --- GITHUB SYNC LOGIC ---
+function toggleSystemSettings() {
+    $('system-settings-modal').classList.toggle('hidden');
+    if (!$('system-settings-modal').classList.contains('hidden')) {
+        $('gh-user').value = localStorage.getItem('fx_gh_user') || '';
+        $('gh-repo').value = localStorage.getItem('fx_gh_repo') || '';
+        $('gh-token').value = localStorage.getItem('fx_gh_token') || '';
+    }
+}
 
+function saveSystemSettings() {
+    localStorage.setItem('fx_gh_user', $('gh-user').value);
+    localStorage.setItem('fx_gh_repo', $('gh-repo').value);
+    localStorage.setItem('fx_gh_token', $('gh-token').value);
+    alert("Configuración guardada localmente.");
+    toggleSystemSettings();
+}
+
+async function syncWithGitHub() {
+    const user = localStorage.getItem('fx_gh_user');
+    const repo = localStorage.getItem('fx_gh_repo');
+    const token = localStorage.getItem('fx_gh_token');
+    
+    if (!user || !repo || !token) return alert("Por favor configure los ajustes de GitHub primero.");
+
+    const btn = event.target;
+    const originalText = btn.innerText;
+    btn.innerText = "⏳ Sincronizando...";
+    btn.disabled = true;
+
+    try {
+        const path = 'data/inventory.json';
+        const url = `https://api.github.com/repos/${user}/${repo}/contents/${path}`;
+        
+        // 1. Get current file SHA
+        const getRes = await fetch(url, {
+            headers: { 'Authorization': `token ${token}` }
+        });
+        
+        let sha = null;
+        if (getRes.ok) {
+            const fileData = await getRes.json();
+            sha = fileData.sha;
+        }
+
+        // 2. Prepare content
+        const content = JSON.stringify({
+            categories: state.categories,
+            products: state.products
+        }, null, 4);
+
+        // 3. Push to GitHub
+        const pushRes = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Update inventory: ${new Date().toLocaleString()}`,
+                content: btoa(unescape(encodeURIComponent(content))), // Handle UTF-8
+                sha: sha
+            })
+        });
+
+        if (pushRes.ok) {
+            alert("🚀 ¡Sincronización exitosa! En 2 minutos los cambios se verán en la web.");
+        } else {
+            const err = await pushRes.json();
+            alert("Error al sincronizar: " + (err.message || 'Desconocido'));
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error de conexión con GitHub.");
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+// --- INITIALIZATION ---
 window.onload = () => { 
-    renderStore(); 
+    loadData();
     updateCartUI(); 
 
     // Loader logic
@@ -262,7 +389,7 @@ window.onload = () => {
             loader.style.opacity = '0';
             setTimeout(() => loader.style.display = 'none', 500);
         }
-    }, 2000);
+    }, 1500);
 
     // File handling
     $('prod-img-input').addEventListener('change', function(e) {
@@ -277,3 +404,4 @@ window.onload = () => {
         }
     });
 }
+function toggleMobileMenu() { $('mobile-menu').classList.toggle('hidden'); }
